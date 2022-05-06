@@ -37,8 +37,6 @@ func InitDb() *gorm.DB {
 func connectDB() *gorm.DB {
 	var err error
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME, DB_PORT)
-	fmt.Print(dsn)
-
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
 	if err != nil {

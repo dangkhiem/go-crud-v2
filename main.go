@@ -13,13 +13,8 @@ func main() {
 	db := db.InitDb()
 	db.AutoMigrate(&models.User{})
 
-	// Provide db variable to controllers
-	r.Use(func(c *gin.Context) {
-		c.Set("db", db)
-		c.Next()
-	})
-
 	router.UserRouter(r)
+	router.AuthRouter(r)
 
 	r.Run(":9999")
 }

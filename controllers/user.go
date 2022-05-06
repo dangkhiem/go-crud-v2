@@ -1,8 +1,11 @@
 package controllers
 
 import (
-	"fmt"
+	"golang-crud/db"
+	"golang-crud/helper"
 	"golang-crud/models"
+	"golang-crud/repositories"
+	"golang-crud/repositories/repoimpl"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,82 +13,72 @@ import (
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
-var validate *validator.Validate
+var (
+	validate     *validator.Validate
+	dbConnection *gorm.DB              = db.InitDb()
+	userRepo     repositories.UserRepo = repoimpl.NewUserRepo(dbConnection)
+)
 
 func GetListUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	var users []models.User
-
-	if err := db.Find(&users).Error; err != nil {
-		c.AbortWithStatus(404)
-		fmt.Println(err)
-	} else {
-		c.JSON(200, gin.H{"data": users})
+	users, err := userRepo.GetList()
+	if err != nil {
+		helper.ErrorResponse(c, err, http.StatusNotFound)
+		return
 	}
+	helper.SuccessResponse(c, users)
 }
 
 func CreateUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	validate = validator.New()
-
-	var input models.User
+	input := models.User{}
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	err := validate.Struct(input)
-	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err})
+		helper.ErrorResponse(c, err, http.StatusBadRequest)
 		return
 	}
 
-	user := models.User{UserName: input.UserName, Email: input.Email}
-	db.Create(&user)
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	input.Password, _ = helper.HashPassword(input.Password)
+	user, err := userRepo.Create(input)
+	if err != nil {
+		helper.ErrorResponse(c, err, http.StatusNotFound)
+		return
+	}
+	helper.SuccessResponse(c, user)
 }
 
 func GetUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	var user models.User
 	id := c.Params.ByName("id")
+	user, err := userRepo.Find(id)
 
-	if err := db.Where("id = ?", id).First(&user).Error; err != nil {
-		c.AbortWithStatus(404)
-		fmt.Println(err)
-	} else {
-		c.JSON(200, user)
+	if err != nil {
+		helper.ErrorResponse(c, err, http.StatusNotFound)
+		return
 	}
+	helper.SuccessResponse(c, user)
 }
 
 func UpdateUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	var user models.User
+	id := c.Params.ByName("id")
+	input := models.User{}
 
-	if err := db.Where("id = ?", c.Param("id")).First(&user).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-		return
-	}
-
-	var input models.User
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, err, http.StatusBadRequest)
 		return
 	}
 
-	db.Model(&user).Updates(input)
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	user, err := userRepo.Update(id, input)
+	if err != nil {
+		helper.ErrorResponse(c, err, http.StatusNotFound)
+		return
+	}
+	helper.SuccessResponse(c, user)
 }
 
 func DeleteUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	var user models.User
-
-	if err := db.Where("id = ?", c.Param("id")).First(&user).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
+	id := c.Params.ByName("id")
+	status, err := userRepo.Delete(id)
+	if err != nil {
+		helper.ErrorResponse(c, err, http.StatusNotFound)
 		return
 	}
 
-	db.Delete(&user)
-	c.JSON(http.StatusOK, gin.H{"data": true})
+	helper.SuccessResponse(c, status)
 }
